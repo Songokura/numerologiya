@@ -1,9 +1,8 @@
 /* ============================================================
-   НУМЕРОЛОГ ЭЛЬВИРА - скрипт страницы.
-   Плиты и сигнатура «свёртка даты» (герой: кадр складывается из трёх экспозиций
-   по --intro, цифры сходятся по --stay; плиты услуг: --open на каждом .fr) ·
-   живой расчёт числа по дате рождения в герое · меню · бегущая строка ·
-   WhatsApp с текстом по услуге · форма в WhatsApp.
+   АГРИППИНА - Таро и нумерология. Скрипт страницы.
+   Плиты и сигнатура «Расклад»: герой - веер из трёх карт (интро по --intro,
+   переворот и разлёт по --stay), плиты услуг - карта переворачивается по --open.
+   Плюс: меню, якоря, бегущая строка, WhatsApp с текстом по услуге, форма в WhatsApp.
    Библиотек нет. Ссылки tel/wa не перезаписываются в момент клика,
    обработчик кликов - только делегирование в фазе захвата (совместимость с LeadBot).
    ============================================================ */
@@ -33,15 +32,14 @@ window.addEventListener("click", function(e){
 }, true);
 
 /* ---------------- ТЕКСТЫ WhatsApp ПО УСЛУГАМ ---------------- */
-var HI = "Здравствуйте, Эльвира! Пишу с сайта.";
+var HI = "Здравствуйте, Агриппина! Пишу с сайта.";
 var WA_TXT = {
   hero:         HI + " Хочу записаться на консультацию. Вопрос: ",
-  razbor:       HI + "\nУслуга: разбор по дате рождения.\nДата рождения: ",
-  sovmestimost: HI + "\nУслуга: совместимость пары.\nДаты рождения (обе): ",
-  prognoz:      HI + "\nУслуга: прогноз на год.\nДата рождения: ",
-  "imya-data":  HI + "\nУслуга: нумерология имени и выбор даты.\nИмя, дата рождения и событие: ",
-  biznes:       HI + "\nУслуга: консультация по финансам и работе.\nДата рождения и вопрос: ",
-  karty:        HI + "\nУслуга: консультация на картах.\nВопрос: ",
+  taro:         HI + "\nХочу расклад на картах Таро.\nМой вопрос: ",
+  razbor:       HI + "\nХочу разбор по дате рождения.\nДата рождения: ",
+  sovmestimost: HI + "\nХочу посмотреть совместимость пары.\nДаты рождения (обе): ",
+  prognoz:      HI + "\nХочу прогноз на год.\nДата рождения: ",
+  situaciya:    HI + "\nХочу консультацию по ситуации.\nКоротко о ситуации: ",
   kontakty:     HI + " Вопрос: "
 };
 function waUrl(t){ return "https://wa.me/" + CONTACT.wa + "?text=" + encodeURIComponent(t); }
@@ -50,99 +48,10 @@ document.querySelectorAll("[data-wa]").forEach(function(a){
   a.target = "_blank"; a.rel = "noopener";
 });
 
-/* ---------------- ЖИВОЙ РАСЧЁТ ЧИСЛА ПО ДАТЕ (герой) ----------------
-   Пример 12.04.1987 показан по умолчанию. Человек нажимает на цифры, вводит свою дату -
-   ячейки заполняются, сумма пересчитывается, ссылка «спросить Эльвиру» получает дату и число. */
-var sum = document.getElementById("sum");
-var bd = document.getElementById("bd");
-var cells = [].slice.call(document.querySelectorAll("#sum .dg span"));
-var res = document.getElementById("sum-res");
-var hint = document.getElementById("sum-hint");
-var ask = document.getElementById("ask");
-var bigEl = document.getElementById("big");
-var EXAMPLE = "12041987";
-function reduceChain(digits){
-  var chain = [], s = digits.reduce(function(a, b){ return a + b; }, 0);
-  chain.push(digits.join("+") + " = " + s);
-  while (s > 9) {
-    var ds = String(s).split("").map(Number);
-    s = ds.reduce(function(a, b){ return a + b; }, 0);
-    chain.push(ds.join("+") + " = " + s);
-  }
-  return { chain: chain, n: s };
-}
-function validDate(d){
-  var dd = +d.slice(0, 2), mm = +d.slice(2, 4), yy = +d.slice(4, 8);
-  if (mm < 1 || mm > 12 || dd < 1 || yy < 1900 || yy > new Date().getFullYear()) return false;
-  var dim = new Date(yy, mm, 0).getDate();
-  return dd <= dim;
-}
-function renderSum(d, own){
-  var digits = d.split("").map(Number);
-  var r = reduceChain(digits);
-  var html = "";
-  r.chain.forEach(function(step, i){
-    var last = i === r.chain.length - 1;
-    var t = last ? step.replace(/= (\d+)$/, "= <b>$1</b>") : step;
-    html += '<span class="' + (i === 0 ? "s1" : "s2") + '">' + t + "</span>";
-  });
-  res.innerHTML = html;
-  res.classList.remove("bad");
-  if (bigEl) bigEl.textContent = String(r.n);
-  var pretty = d.slice(0, 2) + "." + d.slice(2, 4) + "." + d.slice(4, 8);
-  if (ask) ask.href = own
-    ? waUrl(HI + " Моя дата рождения: " + pretty + ", число " + r.n + ". Что оно значит?")
-    : waUrl(HI + " Хочу узнать, что значит число моей даты рождения. Дата: ");
-  if (hint) hint.lastElementChild.textContent = own
-    ? "Ваше число - " + r.n + ". Что за ним стоит, расскажет Эльвира"
-    : "Это пример. Нажмите на цифры и введите свою дату";
-}
-function onInput(){
-  var v = (bd.value || "").replace(/\D/g, "").slice(0, 8);
-  bd.value = v;
-  var own = v.length > 0;
-  sum.classList.toggle("own", own);
-  cells.forEach(function(c, i){
-    var ch = own ? (v[i] || "·") : EXAMPLE[i];
-    c.textContent = ch;
-    c.parentElement.classList.toggle("empty", own && !v[i]);
-    c.parentElement.classList.toggle("cur", own ? i === v.length : false);
-  });
-  if (!own) { renderSum(EXAMPLE, false); return; }
-  if (v.length < 8) {
-    res.innerHTML = '<span class="s2">введите дату полностью: день, месяц, год</span>';
-    res.classList.remove("bad");
-    if (hint) hint.lastElementChild.textContent = "Осталось цифр: " + (8 - v.length);
-    return;
-  }
-  if (!validDate(v)) {
-    res.innerHTML = '<span class="s2">проверьте дату: день, месяц, год</span>';
-    res.classList.add("bad");
-    if (hint) hint.lastElementChild.textContent = "Например, 12041987";
-    return;
-  }
-  renderSum(v, true);
-}
-if (bd && sum) {
-  bd.addEventListener("input", onInput);
-  bd.addEventListener("focus", function(){ if (!bd.value) cells.forEach(function(c, i){ c.parentElement.classList.toggle("cur", i === 0); }); sum.classList.add("focus"); });
-  bd.addEventListener("blur", function(){ if (!bd.value) cells.forEach(function(c){ c.parentElement.classList.remove("cur"); }); });
-  /* ссылка «спросить» без своей даты ведёт в WhatsApp с просьбой указать дату */
-  renderSum(EXAMPLE, false);
-}
-/* поле даты в форме: только цифры, точки расставляем сами */
-var fbday = document.getElementById("fbday");
-if (fbday) fbday.addEventListener("input", function(){
-  var v = fbday.value.replace(/\D/g, "").slice(0, 8), out = v;
-  if (v.length > 4) out = v.slice(0, 2) + "." + v.slice(2, 4) + "." + v.slice(4);
-  else if (v.length > 2) out = v.slice(0, 2) + "." + v.slice(2);
-  fbday.value = out;
-});
-
-/* ---------------- БЕГУЩАЯ СТРОКА: услуги (герой) ---------------- */
+/* ---------------- БЕГУЩАЯ СТРОКА (герой) ---------------- */
 var TICKS = {
-  svc: ["Разбор по дате рождения", "Совместимость пары", "Прогноз на год", "Нумерология имени", "Выбор даты для события",
-        "Финансы и работа", "Консультация на картах", "Лично и онлайн", "Астана", "Алматы", "Костанай", "Шымкент", "Отвечает сама"]
+  svc: ["Гадание на картах Таро", "Разбор по дате рождения", "Совместимость пары", "Прогноз на год",
+        "Консультация по ситуации", "Лично и онлайн", "Отвечаю сама", "Астана", "Алматы", "Костанай", "Шымкент", "Весь Казахстан"]
 };
 function fillTicker(){
   document.querySelectorAll(".ticker[data-tick]").forEach(function(el){
@@ -159,7 +68,7 @@ function fillTicker(){
   });
 }
 
-/* дисплейная строка героя в одну строку: ужимаем кегль, пока не влезет */
+/* ---------------- ДИСПЛЕЙНАЯ СТРОКА ГЕРОЯ: ужимаем кегль, пока не влезет ---------------- */
 function fitText(){
   document.querySelectorAll(".h1 .big1").forEach(function(el){
     el.style.fontSize = "";
@@ -171,13 +80,30 @@ function fitText(){
   });
 }
 
+/* ---------------- ВЕЕР КАРТ: размер карты по свободному месту ----------------
+   Карта должна поместиться между текстом героя и бегущей строкой, а веер из трёх карт -
+   в ширину экрана. Считаем в JS, пишем --ch и --fxr на герое. */
+var hero = document.getElementById("hero");
+var fan = document.querySelector(".fan");
+function fitFan(){
+  if (!hero || !fan) return;
+  var mob = innerWidth <= 760;
+  var fxr = mob ? .38 : .5;
+  var freeH = fan.clientHeight;
+  var freeW = fan.clientWidth;
+  var ch = Math.min(freeH * .94, 400, freeW / (.66 + 2 * fxr) * .98);
+  ch = Math.max(140, Math.round(ch));
+  hero.style.setProperty("--ch", ch + "px");
+  hero.style.setProperty("--fxr", fxr);
+}
+
 var rsTimer;
 addEventListener("resize", function(){
   update();
   clearTimeout(rsTimer);
-  rsTimer = setTimeout(function(){ fillTicker(); fitText(); update(); }, 200);
+  rsTimer = setTimeout(function(){ fillTicker(); fitText(); fitFan(); update(); }, 200);
 });
-if (document.fonts && document.fonts.ready) document.fonts.ready.then(function(){ fillTicker(); fitText(); update(); });
+if (document.fonts && document.fonts.ready) document.fonts.ready.then(function(){ fillTicker(); fitText(); fitFan(); update(); });
 
 /* ---------------- МЕНЮ ---------------- */
 var burger = document.getElementById("burger");
@@ -191,6 +117,7 @@ if (burger) burger.addEventListener("click", function(){
   burger.setAttribute("aria-expanded", open ? "true" : "false");
 });
 if (mnav) mnav.addEventListener("click", function(e){ if (e.target.closest("a")) closeMenu(); });
+document.querySelectorAll(".menu-cta a").forEach(function(a){ a.addEventListener("click", closeMenu); });
 addEventListener("keydown", function(e){ if (e.key === "Escape") closeMenu(); });
 
 /* ---------------- ЯКОРЯ ---------------- */
@@ -210,27 +137,26 @@ document.addEventListener("click", function(e){
 var hdr = document.getElementById("hdr");
 function hdrState(){ if (hdr) hdr.classList.toggle("solid", scrollY > 40); }
 
-/* ---------------- ПЛИТЫ, ИНТРО ГЕРОЯ, КАДРЫ ----------------
-   Один слушатель scroll через rAF. На .pw пишем --enter/--exit/--stay;
-   на герое --intro (кадр складывается из экспозиций), на каждом .fr - --open по его положению. */
+/* ---------------- ПЛИТЫ И ИНТРО ГЕРОЯ ----------------
+   Один слушатель scroll через rAF. На .pw пишем --enter/--exit/--stay/--open;
+   на герое ещё --intro (карты поднимаются веером, текст всплывает). */
 function clamp(v){ return v < 0 ? 0 : (v > 1 ? 1 : v); }
 function easeOut(t){ return 1 - Math.pow(1 - t, 3); }
 var pws = [].slice.call(document.querySelectorAll(".pw"));
-var frames = [].slice.call(document.querySelectorAll(".fr:not(.fr-hero)"));
 var heroPw = document.getElementById("top");
-var hero = document.getElementById("hero");
 var bar = document.getElementById("bar");
 var kont = document.getElementById("kontakty");
 var introK = 1, introDone = true;
-/* ?intro=0.4 / ?open=0.5 в URL - только для проверки промежуточных фаз (checks/) */
+/* ?intro=0.4 / ?open=0.5 / ?stay=0.3 в URL - только для проверки промежуточных фаз (checks/) */
 var DBG = new URLSearchParams(location.search);
-var dbgIntro = parseFloat(DBG.get("intro")), dbgOpen = parseFloat(DBG.get("open"));
+var dbgIntro = parseFloat(DBG.get("intro")), dbgOpen = parseFloat(DBG.get("open")), dbgStay = parseFloat(DBG.get("stay"));
 
 function update(){
   var H = innerHeight || root.clientHeight;
+  var onKont = kont && kont.getBoundingClientRect().top < H * 0.6;
   if (root.classList.contains("no-plate")) {
     hdrState();
-    if (bar) bar.classList.toggle("show", scrollY > H * 0.55 && !(kont && kont.getBoundingClientRect().top < H * 0.6));
+    if (bar) bar.classList.toggle("show", scrollY > H * 0.55 && !onKont);
     return;
   }
   pws.forEach(function(pw){
@@ -238,9 +164,12 @@ function update(){
     var enter = clamp(1 - r.top / H);
     var exit  = clamp(1 - r.bottom / H);
     var stay  = r.height > H + 1 ? clamp(-r.top / (r.height - H)) : enter;
+    if (!isNaN(dbgStay) && pw === heroPw) stay = dbgStay;
+    var open  = !isNaN(dbgOpen) ? dbgOpen : easeOut(clamp((enter - .3) / .55));
     pw.style.setProperty("--enter", enter.toFixed(3));
     pw.style.setProperty("--exit",  exit.toFixed(3));
     pw.style.setProperty("--stay",  stay.toFixed(3));
+    pw.style.setProperty("--open",  open.toFixed(3));
     pw.classList.toggle("gone", exit >= 1);
     pw.classList.toggle("on", enter > 0.6);
     if (pw === heroPw) {
@@ -249,21 +178,13 @@ function update(){
       pw.style.setProperty("--intro", ip.toFixed(4));
     }
   });
-  frames.forEach(function(f){
-    var r = f.getBoundingClientRect();
-    var e = clamp(1 - r.top / H);                       /* верх кадра вошёл во вьюпорт */
-    var open = !isNaN(dbgOpen) ? dbgOpen : easeOut(clamp((e - .18) / .6));
-    f.style.setProperty("--open", open.toFixed(3));
-  });
   hdrState();
-  var onKont = kont && kont.getBoundingClientRect().top < H * 0.6;
   if (bar) bar.classList.toggle("show", scrollY > H * 0.55 && !onKont);
 }
 if (RED) {
   root.classList.add("no-plate");
   root.classList.add("no-intro");
-  if (hero) hero.classList.add("on");
-  addEventListener("scroll", function(){ hdrState(); if (bar) bar.classList.toggle("show", scrollY > innerHeight * 0.55); }, {passive:true});
+  addEventListener("scroll", function(){ update(); }, {passive:true});
   hdrState();
 } else {
   var tick = false;
@@ -272,12 +193,11 @@ if (RED) {
     requestAnimationFrame(function(){ tick = false; update(); });
   }, {passive:true});
   addEventListener("load", update);
-  /* интро 1250 мс: три экспозиции складываются в кадр, цифры падают в строку, черта суммы прочерчивается.
+  /* интро 1250 мс: карты поднимаются из-под экрана и раскладываются веером, текст всплывает.
      Пропускаем при хэше / прокрутке - человек из рекламы сразу видит собранный экран. */
   var skip = location.hash || scrollY > 80;
   if (skip) {
     root.classList.add("no-intro");
-    if (hero) hero.classList.add("on");
     update();
   } else {
     introK = 0; introDone = false; update();
@@ -287,22 +207,20 @@ if (RED) {
       if (t0 === null) t0 = ts;
       var p = clamp((ts - t0) / 1250);
       introK = p;
-      if (p > .3 && hero) hero.classList.add("on");
       update();
       if (p < 1) requestAnimationFrame(step);
       else { introDone = true; update(); }
     };
     requestAnimationFrame(function(){ requestAnimationFrame(step); });
-    setTimeout(function(){ if (hero) hero.classList.add("on"); }, 700);
     setTimeout(function(){ if (!introDone) { introDone = true; introK = 1; update(); } }, 2400);
   }
 }
-[1500, 3000, 5000].forEach(function(ms){ setTimeout(update, ms); });
-window.plateSync = function(){ introDone = true; introK = 1; if (hero) hero.classList.add("on"); update(); };
+[600, 1500, 3000, 5000].forEach(function(ms){ setTimeout(function(){ fitFan(); update(); }, ms); });
+window.plateSync = function(){ introDone = true; introK = 1; root.classList.add("no-intro"); fitFan(); update(); };
 addEventListener("hashchange", function(){ root.classList.add("no-intro"); });
 
 /* ---------------- ПОЯВЛЕНИЕ В КАТАЛОЖНЫХ СЕКЦИЯХ ---------------- */
-if (HAS_IO) {
+if (HAS_IO && !RED) {
   var io = new IntersectionObserver(function(es){
     es.forEach(function(e){
       if (!e.isIntersecting) return;
@@ -319,23 +237,26 @@ if (HAS_IO) {
 }
 
 /* ---------------- ФОРМА → WhatsApp ---------------- */
-var form = document.getElementById("form");
+var form = document.getElementById("zayavka");
 if (form) form.addEventListener("submit", function(e){
   e.preventDefault();
   var ok = document.getElementById("fmok"), err = document.getElementById("fmerr");
   if (form.website && form.website.value) return;          /* honeypot */
   var name = form.name.value.trim(), phone = form.phone.value.trim();
-  var bday = form.bday.value.trim(), svc = form.svc.value;
+  var svc = form.svc.value, msg = (form.msg.value || "").trim();
   if (!name || phone.replace(/\D/g, "").length < 10) { err.hidden = false; ok.hidden = true; return; }
   err.hidden = true;
-  var t = HI + " Заявка.\nИмя: " + name + "\nТелефон: " + phone + "\nДата рождения: " + (bday || "уточню в разговоре") + "\nКонсультация: " + svc;
+  var t = HI + " Заявка.\nИмя: " + name + "\nТелефон: " + phone + "\nЧто смотрим: " + svc + (msg ? "\nО ситуации: " + msg : "");
   ok.hidden = false;
   conv("lead");
   window.open(waUrl(t), "_blank", "noopener");
 });
 
 /* ---------------- СТАРТ ---------------- */
+var yr = document.getElementById("year");
+if (yr) yr.textContent = String(new Date().getFullYear());
 fillTicker();
 fitText();
+fitFan();
 hdrState();
 })();
